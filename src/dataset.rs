@@ -1,10 +1,7 @@
 use burn::{
     data::{
         dataloader::batcher::Batcher,
-        dataset::{
-            transform::{PartialDataset, ShuffledDataset},
-            Dataset, InMemDataset,
-        },
+        dataset::{transform::ShuffledDataset, Dataset, InMemDataset},
     },
     prelude::*,
 };
@@ -33,27 +30,30 @@ pub const BOOL_XOR: &[LogicItem] = &[
     LogicItem::new(1, 1, 0),
 ];
 
-pub const CURR_INPUT: &[LogicItem] = BOOL_AND;
+pub const CURR_INPUT: &[LogicItem] = BOOL_XOR;
 
 // 0 = false, 1 = true
 #[derive(Clone, Debug)]
 pub struct LogicItem {
-    pub a: usize,
-    pub b: usize,
-    pub output: usize,
+    pub a: f32,
+    pub b: f32,
+    pub output: f32,
 }
 
 impl LogicItem {
     pub const fn new(a: usize, b: usize, output: usize) -> Self {
-        Self { a, b, output }
+        Self {
+            a: a as f32,
+            b: b as f32,
+            output: output as f32,
+        }
     }
 }
 
 type ShuffledData = ShuffledDataset<InMemDataset<LogicItem>, LogicItem>;
-type PartialData = PartialDataset<ShuffledData, LogicItem>;
 
 pub struct LogicDataset {
-    dataset: PartialData,
+    dataset: ShuffledData,
 }
 
 impl Dataset<LogicItem> for LogicDataset {
@@ -67,37 +67,24 @@ impl Dataset<LogicItem> for LogicDataset {
 }
 
 impl LogicDataset {
-    pub fn train() -> Self {
-        Self::new("train")
-    }
+    pub fn new(num_items: usize) -> Self {
+        let data = (0..num_items)
+            .map(|_| {
+                let a: f32 = rand::random();
+                let b: f32 = rand::random();
 
-    pub fn test() -> Self {
-        Self::new("test")
-    }
+                let idx = 2 * (a > 0.5) as usize + (b > 0.5) as usize;
 
-    pub fn new(split: &str) -> Self {
-        let data = CURR_INPUT.to_vec();
-        let amount = 100;
-        let data = data
-            .iter()
-            .cloned()
-            .cycle()
-            .take(data.len() * amount)
+                let output = CURR_INPUT[idx].output as f32;
+
+                LogicItem { a, b, output }
+            })
             .collect();
         let dataset: InMemDataset<LogicItem> = InMemDataset::new(data);
 
-        let dataset = ShuffledDataset::with_seed(dataset, 100);
+        let dataset = ShuffledDataset::with_seed(dataset, 42);
 
-        let len = dataset.len();
-        let filtered_dataset = match split {
-            "train" => PartialData::new(dataset, 0, len * 8 / 10),
-            "test" => PartialData::new(dataset, len * 8 / 10, len),
-            _ => panic!("Invalid split type"), // Handle unexpected split types
-        };
-
-        Self {
-            dataset: filtered_dataset,
-        }
+        Self { dataset }
     }
 }
 
@@ -109,7 +96,7 @@ pub struct LogicBatcher<B: Backend> {
 #[derive(Clone, Debug)]
 pub struct LogicBatch<B: Backend> {
     pub inputs: Tensor<B, 2>,
-    pub targets: Tensor<B, 1>,
+    pub targets: Tensor<B, 1, Int>,
 }
 
 impl<B: Backend> LogicBatcher<B> {
@@ -123,21 +110,56 @@ impl<B: Backend> Batcher<LogicItem, LogicBatch<B>> for LogicBatcher<B> {
         let mut inputs: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
-            let input_tensor =
-                Tensor::<B, 1>::from_floats([item.a as f32, item.b as f32], &self.device);
+            let input_tensor = Tensor::<B, 1>::from_floats([item.a, item.b], &self.device);
 
             inputs.push(input_tensor.unsqueeze());
         }
 
-        let inputs = Tensor::cat(inputs, 0);
+        let inputs = Tensor::cat(inputs, 0).to_device(&self.device);
 
-        let targets = items
+        let targets: Vec<u32> = items
             .iter()
-            .map(|item| Tensor::<B, 1>::from_floats([item.output as f32], &self.device))
+            .map(|item| if item.output > 0.5 { 1 } else { 0 })
             .collect();
 
-        let targets = Tensor::cat(targets, 0);
+        let targets: Tensor<B, 1, Int> = Tensor::from_data(
+            Data::new(targets, [items.len()].into()).convert(),
+            &self.device,
+        )
+        .to_device(&self.device);
 
         LogicBatch { inputs, targets }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::backend::Wgpu;
+
+    use super::*;
+
+    #[test]
+    fn batching() {
+        type Backend = Wgpu;
+        let device = burn::backend::wgpu::WgpuDevice::default();
+
+        let amount = 4;
+        let dataset = LogicDataset::new(amount);
+
+        let mut items = vec![];
+        for i in 0..amount {
+            items.push(dataset.get(i).unwrap());
+        }
+
+        let batcher = LogicBatcher::<Backend>::new(device);
+
+        let batch = batcher.batch(items);
+
+        println!("batch input dims: {:?}", batch.inputs.dims());
+        assert_eq!(batch.inputs.dims(), [4, 2]);
+        println!("batch output dims: {:?}", batch.targets.dims());
+        assert_eq!(batch.targets.dims(), [4]);
+        println!("batch input: {:?}", batch.inputs.into_data());
+        println!("batch output: {:?}", batch.targets.into_data());
     }
 }

@@ -15,9 +15,13 @@ fn main() {
 
     let data = dataset::CURR_INPUT.to_vec();
     for d in data {
-        let input = Tensor::<Backend, 1>::from_floats([d.a as f32, d.b as f32], &device);
+        let input = Tensor::<Backend, 1>::from_floats([d.a, d.b], &device);
         let input: Tensor<Backend, 2> = input.unsqueeze();
-        let output = model.forward(input).flatten::<1>(0, 1).into_scalar();
-        println!("{}, {} -> {}, Expected: {}", d.a, d.b, output, d.output)
+        let output = model
+            .forward(input)
+            .argmax(1)
+            .flatten::<1>(0, 1)
+            .into_scalar();
+        println!("{}, {} -> {}, Expected: {}", d.a, d.b, output, d.output);
     }
 }

@@ -1,6 +1,7 @@
 use crate::dataset::{LogicBatcher, LogicDataset};
 use crate::model::{Model, ModelConfig};
 use burn::optim::AdamConfig;
+use burn::train::metric::AccuracyMetric;
 use burn::train::LearnerBuilder;
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
@@ -16,15 +17,15 @@ static ARTIFACT_DIR: &str = "/tmp/nn_logic";
 pub struct TrainingConfig {
     pub model: ModelConfig,
     pub optimizer: AdamConfig,
-    #[config(default = 1000)]
+    #[config(default = 40)]
     pub num_epochs: usize,
-    #[config(default = 100)]
+    #[config(default = 1024)]
     pub batch_size: usize,
     #[config(default = 4)]
     pub num_workers: usize,
     #[config(default = 42)]
     pub seed: u64,
-    #[config(default = 1.0e-4)]
+    #[config(default = 1.0e-1)]
     pub learning_rate: f64,
 }
 
@@ -32,14 +33,14 @@ pub fn run<B: AutodiffBackend>(device: B::Device) -> Model<B> {
     // Config
     let optimizer = AdamConfig::new();
 
-    let model_config = ModelConfig::new(2, 2, 1);
+    let model_config = ModelConfig::new(2, 4, 2);
     let config = TrainingConfig::new(model_config, optimizer);
     B::seed(config.seed);
 
     // Define train/test datasets and dataloaders
 
-    let train_dataset = LogicDataset::train();
-    let test_dataset = LogicDataset::test();
+    let train_dataset = LogicDataset::new(config.batch_size * 10);
+    let test_dataset = LogicDataset::new(config.batch_size * 2);
 
     println!("Train Dataset Size: {}", train_dataset.len());
     println!("Test Dataset Size: {}", test_dataset.len());
@@ -62,6 +63,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) -> Model<B> {
 
     // Model
     let learner = LearnerBuilder::new(ARTIFACT_DIR)
+        .metric_train_numeric(AccuracyMetric::new())
+        .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
