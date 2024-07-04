@@ -16,7 +16,7 @@ static ARTIFACT_DIR: &str = "/tmp/nn_logic";
 pub struct TrainingConfig {
     pub model: ModelConfig,
     pub optimizer: AdamConfig,
-    #[config(default = 1000)]
+    #[config(default = 100)]
     pub num_epochs: usize,
     #[config(default = 100)]
     pub batch_size: usize,
@@ -24,7 +24,7 @@ pub struct TrainingConfig {
     pub num_workers: usize,
     #[config(default = 42)]
     pub seed: u64,
-    #[config(default = 1.0e-4)]
+    #[config(default = 1.0e-2)]
     pub learning_rate: f64,
 }
 
@@ -32,12 +32,11 @@ pub fn run<B: AutodiffBackend>(device: B::Device) -> Model<B> {
     // Config
     let optimizer = AdamConfig::new();
 
-    let model_config = ModelConfig::new(2, 2, 1);
+    let model_config = ModelConfig::new(2, 4, 1);
     let config = TrainingConfig::new(model_config, optimizer);
     B::seed(config.seed);
 
     // Define train/test datasets and dataloaders
-
     let train_dataset = LogicDataset::train();
     let test_dataset = LogicDataset::test();
 

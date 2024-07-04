@@ -10,6 +10,7 @@ use burn::{
 };
 
 // Representing boolean and
+#[allow(unused)]
 pub const BOOL_AND: &[LogicItem] = &[
     LogicItem::new(0, 0, 0),
     LogicItem::new(0, 1, 0),
@@ -18,6 +19,7 @@ pub const BOOL_AND: &[LogicItem] = &[
 ];
 
 // Representing boolean or
+#[allow(unused)]
 pub const BOOL_OR: &[LogicItem] = &[
     LogicItem::new(0, 0, 0),
     LogicItem::new(0, 1, 1),
@@ -26,6 +28,7 @@ pub const BOOL_OR: &[LogicItem] = &[
 ];
 
 // Representing boolean xor
+#[allow(unused)]
 pub const BOOL_XOR: &[LogicItem] = &[
     LogicItem::new(0, 0, 0),
     LogicItem::new(0, 1, 1),
@@ -33,7 +36,7 @@ pub const BOOL_XOR: &[LogicItem] = &[
     LogicItem::new(1, 1, 0),
 ];
 
-pub const CURR_INPUT: &[LogicItem] = BOOL_AND;
+pub const CURR_INPUT: &[LogicItem] = BOOL_XOR;
 
 // 0 = false, 1 = true
 #[derive(Clone, Debug)]

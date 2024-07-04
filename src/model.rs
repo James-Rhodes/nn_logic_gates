@@ -56,11 +56,12 @@ impl<B: Backend> Model<B> {
         let x = self.activation.forward(x);
         let x = self.hidden.forward(x);
         let x = self.activation.forward(x);
-        self.output.forward(x)
+        let x = self.output.forward(x);
+        burn::tensor::activation::sigmoid(x)
     }
 
     pub fn forward_step(&self, item: LogicBatch<B>) -> RegressionOutput<B> {
-        let targets: Tensor<B, 2> = item.targets.unsqueeze();
+        let targets: Tensor<B, 2> = item.targets.unsqueeze_dim(1);
         let output: Tensor<B, 2> = self.forward(item.inputs);
 
         let loss = MseLoss::new().forward(output.clone(), targets.clone(), Auto);

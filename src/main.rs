@@ -7,8 +7,8 @@ mod dataset;
 mod model;
 mod training;
 
-// type Backend = Autodiff<Wgpu>;
 type Backend = Autodiff<Wgpu>;
+
 fn main() {
     let device = WgpuDevice::default();
     let model = training::run::<Backend>(device.clone());
